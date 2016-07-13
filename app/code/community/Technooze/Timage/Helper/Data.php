@@ -62,7 +62,8 @@ class Technooze_Timage_Helper_Data extends Mage_Core_Helper_Abstract
      */
     private function getBaseUrl()
     {
-        $baseUrl = Mage::getStoreConfig(Mage_Core_Model_Store::XML_PATH_UNSECURE_BASE_URL);
+        // @mod: Use media base URL rather than the main base URL, as this may well be different
+        $baseUrl = preg_replace('#media\/$#', '', Mage::getBaseUrl(Mage_Core_Model_Store::URL_TYPE_MEDIA));
         return preg_replace('#^https?://#', '//', $baseUrl);
     }
 
@@ -338,15 +339,31 @@ class Technooze_Timage_Helper_Data extends Mage_Core_Helper_Abstract
     /**
      * @param string $img
      */
-    public function imagePath($img='')
+    public function imagePath($img='', $noPlaceholder = false)
     {
-		$img = str_replace(array(Mage::getStoreConfig(Mage_Core_Model_Store::XML_PATH_UNSECURE_BASE_URL), Mage::getStoreConfig(Mage_Core_Model_Store::XML_PATH_SECURE_BASE_URL)), '', $img);
+        // @mod Find and remove media and skin URLs from path
+        $domainsWithFolders = array(
+            Mage::getBaseUrl(Mage_Core_Model_Store::URL_TYPE_MEDIA, false),
+            Mage::getBaseUrl(Mage_Core_Model_Store::URL_TYPE_MEDIA, true),
+            Mage::getBaseUrl(Mage_Core_Model_Store::URL_TYPE_SKIN, false),
+            Mage::getBaseUrl(Mage_Core_Model_Store::URL_TYPE_SKIN, true),
+        );
+
+        $domains = array();
+        foreach ($domainsWithFolders as $domain) {
+            preg_match("~http[s]*://[a-zA-Z0-9\.]+\/~", $domain, $matches);
+            $domains = array_merge($domains, $matches);
+        }
+
+        $img = str_replace($domains, '', $img);
+
         $img = trim(str_replace('/', DS, $img), DS);
         $this->img = BP . DS . $img;
 
-        if((!file_exists($this->img) || !is_file($this->img)) && !empty($this->placeHolder))
+        if(FALSE == $noPlaceholder && (!file_exists($this->img) || !is_file($this->img)) && !empty($this->placeHolder))
         {
-            $this->imagePath($this->placeHolder);
+            // @mod: Prevent recursion error by passing boolean true here
+            $this->imagePath($this->placeHolder, true);
             $this->placeHolder = false;
         }
     }
